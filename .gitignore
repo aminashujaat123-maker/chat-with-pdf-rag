@@ -1,0 +1,13 @@
+.env
+uploads/*
+!uploads/.gitkeep
+vectorstore/*
+!vectorstore/.gitkeep
+database/*
+!database/.gitkeep
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.log
+.DS_Store

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat with PDF</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Sidebar: upload area and document info -->
+      <aside class="sidebar">
+        <h1 class="app-title">📄 Chat with PDF</h1>
+
+        <div class="upload-section">
+          <label for="pdf-input" class="upload-label" id="upload-label">
+            <span id="upload-label-text">Click to upload a PDF</span>
+          </label>
+          <input type="file" id="pdf-input" accept=".pdf" hidden />
+        </div>
+
+        <div id="upload-status" class="upload-status"></div>
+
+        <div id="document-info" class="document-info hidden">
+          <h3>Current Document</h3>
+          <p id="doc-name"></p>
+          <p id="doc-meta"></p>
+        </div>
+      </aside>
+
+      <!-- Main chat area -->
+      <main class="chat-area">
+        <div id="chat-window" class="chat-window">
+          <div class="welcome-message">
+            Upload a PDF to start asking questions about it.
+          </div>
+        </div>
+
+        <form id="chat-form" class="chat-input-form">
+          <input
+            type="text"
+            id="question-input"
+            placeholder="Ask something about this PDF..."
+            autocomplete="off"
+            disabled
+          />
+          <button type="submit" id="send-button" disabled>➤</button>
+        </form>
+      </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  </body>
+</html>
