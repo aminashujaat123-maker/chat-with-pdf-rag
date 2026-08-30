@@ -29,15 +29,16 @@ CHUNK_OVERLAP = 150
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"  # Sentence Transformers, local, free
 
 # ---------- Retrieval ----------
-TOP_K = 4  # how many relevant chunks to pass to the LLM as context
+TOP_K = 6  # how many relevant chunks to pass to the LLM as context
 
 # ---------- LLM ----------
 LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_MODEL_NAME = "openai/gpt-oss-20b"  # Groq's fast free-tier model
 LLM_TEMPERATURE = 0.2  # lower temperature = more factual, less creative
 
-# ---------- Flask ----------
+# ---------------- Flask ----------------
 FLASK_DEBUG = os.getenv("FLASK_DEBUG", "True") == "True"
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-this-in-production")
 
 # ---------- Logging ----------
 LOG_LEVEL = "INFO"

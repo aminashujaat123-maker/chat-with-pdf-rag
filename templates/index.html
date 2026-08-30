@@ -13,7 +13,13 @@
     <div class="app-container">
       <!-- Sidebar: upload area and document info -->
       <aside class="sidebar">
-        <h1 class="app-title">📄 Chat with PDF</h1>
+        <div class="sidebar-header">
+          <h1 class="app-title">📄 Chat with PDF</h1>
+          <div class="user-row">
+            <span class="username-display">{{ username }}</span>
+            <button id="logout-button" class="logout-button">Log out</button>
+          </div>
+        </div>
 
         <div class="upload-section">
           <label for="pdf-input" class="upload-label" id="upload-label">
@@ -23,6 +29,8 @@
         </div>
 
         <div id="upload-status" class="upload-status"></div>
+
+        <div id="history-list" class="history-list"></div>
 
         <div id="document-info" class="document-info hidden">
           <h3>Current Document</h3>

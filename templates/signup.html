@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign Up — Chat with PDF</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body class="auth-body">
+    <div class="auth-card">
+      <h1 class="auth-title">📄 Chat with PDF</h1>
+      <p class="auth-subtitle">Create a new account</p>
+
+      <form id="auth-form" class="auth-form">
+        <input
+          type="text"
+          id="username"
+          placeholder="Choose a username"
+          autocomplete="username"
+          required
+        />
+        <input
+          type="password"
+          id="password"
+          placeholder="Choose a password (min. 6 characters)"
+          autocomplete="new-password"
+          required
+        />
+        <div id="auth-error" class="auth-error hidden"></div>
+        <button type="submit" id="auth-submit">Sign Up</button>
+      </form>
+
+      <p class="auth-switch">
+        Already have an account? <a href="/login">Log in</a>
+      </p>
+    </div>
+
+    <script
+      src="{{ url_for('static', filename='auth.js') }}"
+      data-mode="signup"
+    ></script>
+  </body>
+</html>

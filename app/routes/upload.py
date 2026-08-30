@@ -7,7 +7,7 @@ Note: In this step (Phase 1, Step 2), we only extract and return text.
 Chunking, embeddings, and vector storage will be added in later steps.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from app.services.file_service import (
     is_allowed_file,
     is_within_size_limit,
@@ -17,6 +17,8 @@ from app.rag.loader import extract_text_from_pdf
 from app.rag.splitter import chunk_pages
 from app.rag.embedder import embed_chunks
 from app.rag.vectorstore import add_chunks_to_store
+from app.services.auth_service import login_required
+from app.services.chat_service import set_last_active_document
 from app.config import MAX_FILE_SIZE_MB
 from app.logger import get_logger
 
@@ -26,6 +28,7 @@ upload_bp = Blueprint("upload", __name__)
 
 
 @upload_bp.route("/upload", methods=["POST"])
+@login_required
 def upload_pdf():
     # 1. Check if a file was sent at all
     if "file" not in request.files:
@@ -87,11 +90,28 @@ def upload_pdf():
         stored_count = add_chunks_to_store(
             chunks=chunks,
             document_id=file_metadata["stored_filename"],
-            document_name=file_metadata["original_filename"]
+            document_name=file_metadata["original_filename"],
+            user_id=session.get("user_id")
         )
     except Exception as e:
         logger.error(f"Failed to store chunks in vector database: {e}")
         return jsonify({"error": "Failed to store the document in the vector database."}), 500
+
+    # 8b. Mark this document as the "active" one for the current session,
+    #     so that /ask only searches within it instead of across every
+    #     document ever uploaded (by anyone). Also persist it to the
+    #     database so it survives a logout/login (not just this session).
+    session["active_document_id"] = file_metadata["stored_filename"]
+    session["active_document_name"] = file_metadata["original_filename"]
+
+    try:
+        set_last_active_document(
+            user_id=session["user_id"],
+            document_id=file_metadata["stored_filename"],
+            document_name=file_metadata["original_filename"]
+        )
+    except Exception as e:
+        logger.error(f"Failed to persist active document: {e}")
 
     # 9. Return a success response with basic info
     #    (full page/chunk text and embeddings are omitted from the

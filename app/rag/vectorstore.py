@@ -45,7 +45,7 @@ def _get_collection():
     return _collection_cache
 
 
-def add_chunks_to_store(chunks: list[dict], document_id: str, document_name: str) -> int:
+def add_chunks_to_store(chunks: list[dict], document_id: str, document_name: str, user_id: int = None) -> int:
     """
     Add a list of embedded chunks to the vector store.
 
@@ -58,6 +58,8 @@ def add_chunks_to_store(chunks: list[dict], document_id: str, document_name: str
         document_name: The original filename, stored as metadata so
                        it can be shown to the user later (e.g. in
                        source citations).
+        user_id: The id of the user who uploaded this document, so
+                 documents can later be scoped/filtered per user.
 
     Returns:
         The number of chunks added to the store.
@@ -79,6 +81,7 @@ def add_chunks_to_store(chunks: list[dict], document_id: str, document_name: str
             "document_name": document_name,
             "page_number": chunk["page_number"],
             "chunk_id": chunk["chunk_id"],
+            "user_id": user_id if user_id is not None else -1,
         }
         for chunk in chunks
     ]
@@ -105,13 +108,18 @@ def get_total_chunk_count() -> int:
     return collection.count()
 
 
-def query_similar_chunks(query_embedding: list[float], top_k: int) -> list[dict]:
+def query_similar_chunks(query_embedding: list[float], top_k: int, document_id: str = None) -> list[dict]:
     """
     Find the chunks most semantically similar to a given query embedding.
 
     Args:
         query_embedding: The embedding vector of the user's question.
         top_k: How many of the most similar chunks to return.
+        document_id: If provided, restricts the search to chunks
+                     belonging only to this document. This is what
+                     keeps answers scoped to the document currently
+                     being chatted with, instead of searching across
+                     every document ever uploaded.
 
     Returns:
         A list of chunk result dicts, ordered from most to least
@@ -131,9 +139,12 @@ def query_similar_chunks(query_embedding: list[float], top_k: int) -> list[dict]
     """
     collection = _get_collection()
 
+    where_filter = {"document_id": document_id} if document_id else None
+
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=top_k
+        n_results=top_k,
+        where=where_filter
     )
 
     # ChromaDB returns results wrapped in an extra outer list

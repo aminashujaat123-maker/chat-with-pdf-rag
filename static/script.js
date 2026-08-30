@@ -9,13 +9,124 @@ const uploadStatus = document.getElementById("upload-status");
 const documentInfo = document.getElementById("document-info");
 const docNameEl = document.getElementById("doc-name");
 const docMetaEl = document.getElementById("doc-meta");
+const historyListEl = document.getElementById("history-list");
 
 const chatWindow = document.getElementById("chat-window");
 const chatForm = document.getElementById("chat-form");
 const questionInput = document.getElementById("question-input");
 const sendButton = document.getElementById("send-button");
 
+const logoutButton = document.getElementById("logout-button");
+
 let hasUploadedDocument = false;
+
+// ---------------- Sidebar document/chat history list ----------------
+
+async function loadDocumentList() {
+  try {
+    const response = await fetch("/documents");
+    const data = await response.json();
+
+    if (!response.ok) {
+      return;
+    }
+
+    renderDocumentList(data.documents, data.active_document_id);
+  } catch (error) {
+    console.error("Could not load document list:", error);
+  }
+}
+
+function renderDocumentList(documents, activeDocumentId) {
+  historyListEl.innerHTML = "";
+
+  documents.forEach((doc) => {
+    const item = document.createElement("button");
+    item.className =
+      "history-item" + (doc.document_id === activeDocumentId ? " active" : "");
+    item.textContent = doc.document_name;
+    item.title = doc.document_name;
+    item.addEventListener("click", () => switchDocument(doc.document_id));
+    historyListEl.appendChild(item);
+  });
+}
+
+async function switchDocument(documentId) {
+  try {
+    const response = await fetch("/documents/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_id: documentId }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not switch document.");
+    }
+
+    // Reset the chat view, then load this document's saved history
+    chatWindow.innerHTML = "";
+    hasUploadedDocument = true;
+    questionInput.disabled = false;
+    sendButton.disabled = false;
+
+    docNameEl.textContent = data.document_name;
+    docMetaEl.textContent = "Previous conversation";
+    documentInfo.classList.remove("hidden");
+
+    await loadChatHistory();
+    await loadDocumentList(); // refresh so the active highlight moves
+  } catch (error) {
+    console.error("Failed to switch document:", error);
+  }
+}
+
+// ---------------- Chat history restoration ----------------
+
+async function loadChatHistory() {
+  try {
+    const response = await fetch("/history");
+    const data = await response.json();
+
+    if (!response.ok || !data.messages || data.messages.length === 0) {
+      return;
+    }
+
+    // A document is already active in this session (from a
+    // previous upload) and has saved messages — restore the view.
+    clearWelcomeMessage();
+    hasUploadedDocument = true;
+    questionInput.disabled = false;
+    sendButton.disabled = false;
+
+    docNameEl.textContent = data.document_name;
+    docMetaEl.textContent = "Restored from previous session";
+    documentInfo.classList.remove("hidden");
+    uploadStatus.textContent = `Continuing chat with ${data.document_name}`;
+
+    data.messages.forEach((msg) => {
+      addUserMessage(msg.question);
+      addAssistantMessage(msg.answer, msg.sources);
+    });
+  } catch (error) {
+    // Silently ignore — worst case, the user just starts fresh.
+    console.error("Could not load chat history:", error);
+  }
+}
+
+loadChatHistory();
+loadDocumentList();
+
+// ---------------- Logout handling ----------------
+
+logoutButton.addEventListener("click", async () => {
+  try {
+    await fetch("/api/logout", { method: "POST" });
+  } finally {
+    window.location.href = "/login";
+  }
+});
 
 // ---------------- Upload handling ----------------
 
@@ -70,7 +181,8 @@ function onUploadSuccess(data) {
   sendButton.disabled = false;
   questionInput.focus();
 
-  clearWelcomeMessage();
+  chatWindow.innerHTML = "";
+  loadDocumentList();
 }
 
 function onUploadError(message) {
@@ -111,6 +223,7 @@ chatForm.addEventListener("submit", async (event) => {
     }
 
     addAssistantMessage(data.answer, data.sources);
+    loadDocumentList();
   } catch (error) {
     typingBubble.remove();
     addAssistantMessage(error.message, [], true);

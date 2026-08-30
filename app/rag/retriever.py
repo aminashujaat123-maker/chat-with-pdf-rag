@@ -17,12 +17,15 @@ from app.logger import get_logger
 logger = get_logger(__name__)
 
 
-def retrieve_relevant_chunks(question: str, top_k: int = TOP_K) -> list[dict]:
+def retrieve_relevant_chunks(question: str, document_id: str = None, top_k: int = TOP_K) -> list[dict]:
     """
     Find the chunks most relevant to a user's question.
 
     Args:
         question: The user's natural-language question.
+        document_id: If provided, restricts the search to only this
+                     document (keeps answers scoped to the document
+                     currently being chatted with).
         top_k: How many relevant chunks to retrieve (defaults to
                the TOP_K value set in config.py).
 
@@ -34,7 +37,7 @@ def retrieve_relevant_chunks(question: str, top_k: int = TOP_K) -> list[dict]:
     logger.info(f"Retrieving top {top_k} chunks for question: '{question}'")
 
     query_embedding = embed_query(question)
-    results = query_similar_chunks(query_embedding, top_k)
+    results = query_similar_chunks(query_embedding, top_k, document_id=document_id)
 
     logger.info(f"Retrieved {len(results)} chunks.")
 
