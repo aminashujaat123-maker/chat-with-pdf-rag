@@ -133,3 +133,27 @@ def get_document_name_for_user(user_id: int, document_id: str) -> str | None:
     conn.close()
 
     return row["document_name"] if row else None
+def delete_document_messages(user_id: int, document_id: str) -> None:
+    """Delete all chat history rows for a user's document."""
+    conn = get_db_connection()
+    conn.execute(
+        "DELETE FROM messages WHERE user_id = ? AND document_id = ?",
+        (user_id, document_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def clear_last_active_document_if_matches(user_id: int, document_id: str) -> None:
+    """
+    If the given document was the user's last active document,
+    clear that reference (since it no longer exists after deletion).
+    """
+    conn = get_db_connection()
+    conn.execute(
+        "UPDATE users SET last_document_id = NULL, last_document_name = NULL "
+        "WHERE id = ? AND last_document_id = ?",
+        (user_id, document_id)
+    )
+    conn.commit()
+    conn.close()

@@ -30,6 +30,23 @@ SYSTEM_PROMPT = (
     "3. Keep your answer clear and directly relevant to the question."
 )
 
+SUMMARY_SYSTEM_PROMPT = (
+    "You are a helpful assistant that writes clear summaries of documents. "
+    "You will be given the full text content of a PDF document, extracted "
+    "page by page. Write a well-organized summary that:\n"
+    "1. Gives a brief overview of what the document is about.\n"
+    "2. Lists the key topics or sections covered.\n"
+    "3. Highlights any particularly important points, definitions, or "
+    "conclusions.\n"
+    "Base the summary only on the provided content — do not add outside "
+    "knowledge or make assumptions beyond what is written."
+)
+
+# Whole-document summaries can involve a lot of text. This caps how much
+# context is sent to the LLM to stay within a safe token budget; if the
+# document is longer, only the earliest pages (up to this limit) are used.
+MAX_SUMMARY_CONTEXT_CHARS = 15000
+
 
 def _get_client() -> Groq:
     """Create (on first use) and reuse the Groq API client."""
@@ -48,9 +65,9 @@ def _get_client() -> Groq:
 
 def _build_context(chunks: list[dict]) -> str:
     """
-    Combine the retrieved chunks into a single context string,
-    labeling each piece with its page number so the model's answer
-    can be traced back to a specific page.
+    Combine chunks into a single context string, labeling each piece
+    with its page number so the model's answer can be traced back to
+    a specific page.
     """
     context_parts = []
     for chunk in chunks:
@@ -64,15 +81,8 @@ def _build_context(chunks: list[dict]) -> str:
 def generate_answer(question: str, chunks: list[dict]) -> str:
     """
     Generate a final natural-language answer to the user's question,
-    grounded in the given retrieved chunks.
-
-    Args:
-        question: The user's natural-language question.
-        chunks: The chunks retrieved from the vector store (output
-                of retrieve_relevant_chunks()).
-
-    Returns:
-        The LLM's generated answer as a plain string.
+    grounded in the given retrieved chunks (the top-k chunks most
+    relevant to this specific question).
     """
     client = _get_client()
     context = _build_context(chunks)
@@ -99,3 +109,56 @@ def generate_answer(question: str, chunks: list[dict]) -> str:
     logger.info("LLM answer generated successfully.")
 
     return answer
+
+
+def generate_summary(chunks: list[dict]) -> str:
+    """
+    Generate a whole-document summary from ALL of a document's chunks
+    (not just the top-k relevant to a specific question). This avoids
+    the problem of semantic retrieval missing most of the document
+    when there's no specific query to match against — a "summarize
+    this" request needs the full content, not just similar-sounding
+    pieces.
+
+    Args:
+        chunks: Every chunk belonging to the document, ordered by
+                page number (output of get_all_chunks_for_document()).
+
+    Returns:
+        The LLM's generated summary as a plain string.
+    """
+    client = _get_client()
+    context = _build_context(chunks)
+
+    truncated = False
+    if len(context) > MAX_SUMMARY_CONTEXT_CHARS:
+        context = context[:MAX_SUMMARY_CONTEXT_CHARS]
+        truncated = True
+
+    user_prompt = f"Full document content:\n\n{context}\n\nWrite a summary of this document."
+
+    if truncated:
+        user_prompt += (
+            "\n\n(Note: this document is long, so only its earlier "
+            "portion is shown above. Summarize based on what is available.)"
+        )
+
+    logger.info(
+        f"Generating whole-document summary (model={LLM_MODEL_NAME}, "
+        f"context_chars={len(context)}, truncated={truncated}) ..."
+    )
+
+    response = client.chat.completions.create(
+        model=LLM_MODEL_NAME,
+        temperature=LLM_TEMPERATURE,
+        messages=[
+            {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ]
+    )
+
+    summary = response.choices[0].message.content
+
+    logger.info("Summary generated successfully.")
+
+    return summary

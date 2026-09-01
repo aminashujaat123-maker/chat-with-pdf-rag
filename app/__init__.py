@@ -40,6 +40,8 @@ def create_app():
     from app.routes.auth import auth_bp
     from app.routes.history import history_bp
     from app.routes.documents import documents_bp
+    from app.routes.search import search_bp
+    from app.routes.summarize import summarize_bp
     app.register_blueprint(health_bp)
     app.register_blueprint(upload_bp)
     app.register_blueprint(ask_bp)
@@ -47,6 +49,8 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(history_bp)
     app.register_blueprint(documents_bp)
+    app.register_blueprint(search_bp)
+    app.register_blueprint(summarize_bp)
 
     logger.info("Flask app initialized successfully.")
     return app

@@ -30,12 +30,25 @@
 
         <div id="upload-status" class="upload-status"></div>
 
+        <div class="search-section">
+          <input
+            type="text"
+            id="search-input"
+            class="search-input"
+            placeholder="Search this document..."
+          />
+          <div id="search-results" class="search-results"></div>
+        </div>
+
         <div id="history-list" class="history-list"></div>
 
         <div id="document-info" class="document-info hidden">
           <h3>Current Document</h3>
           <p id="doc-name"></p>
           <p id="doc-meta"></p>
+          <button id="summarize-button" class="summarize-button">
+            📝 Summarize Document
+          </button>
         </div>
       </aside>
 
