@@ -15,11 +15,6 @@ logger = get_logger(__name__)
 
 
 def create_app():
-    # template_folder and static_folder are set explicitly because this
-    # package (app/) lives one level below the project root, while the
-    # templates/ and static/ folders live at the project root itself.
-    # Without this, Flask would look for them inside app/ and fail to
-    # find them.
     app = Flask(
         __name__,
         template_folder=os.path.join(BASE_DIR, "templates"),
@@ -29,10 +24,8 @@ def create_app():
     app.config["DEBUG"] = FLASK_DEBUG
     app.secret_key = SECRET_KEY
 
-    # Create the SQLite tables (e.g. users) if they don't exist yet
     init_db()
 
-    # Blueprints are registered here as new routes are added
     from app.routes.health import health_bp
     from app.routes.upload import upload_bp
     from app.routes.ask import ask_bp
@@ -42,6 +35,7 @@ def create_app():
     from app.routes.documents import documents_bp
     from app.routes.search import search_bp
     from app.routes.summarize import summarize_bp
+    from app.routes.quick_actions import quick_actions_bp
     app.register_blueprint(health_bp)
     app.register_blueprint(upload_bp)
     app.register_blueprint(ask_bp)
@@ -51,6 +45,7 @@ def create_app():
     app.register_blueprint(documents_bp)
     app.register_blueprint(search_bp)
     app.register_blueprint(summarize_bp)
+    app.register_blueprint(quick_actions_bp)
 
     logger.info("Flask app initialized successfully.")
     return app

@@ -11,6 +11,7 @@ const historyListEl = document.getElementById("history-list");
 const searchInput = document.getElementById("search-input");
 const searchResultsEl = document.getElementById("search-results");
 const summarizeButton = document.getElementById("summarize-button");
+const quickActionButtons = document.querySelectorAll(".quick-action-btn");
 
 const chatWindow = document.getElementById("chat-window");
 const chatForm = document.getElementById("chat-form");
@@ -20,6 +21,31 @@ const sendButton = document.getElementById("send-button");
 const logoutButton = document.getElementById("logout-button");
 
 let hasUploadedDocument = false;
+
+// ---------------- Network-aware fetch wrapper ----------------
+// Wraps the native fetch() so every API call in this file gets:
+//   1. A friendly message instead of a raw browser error when the
+//      network is down or the server can't be reached.
+//   2. Automatic redirect to the login page if the session has
+//      expired (401), instead of showing a confusing error in place.
+
+async function apiFetch(url, options = {}) {
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (networkError) {
+    throw new Error(
+      "Can't reach the server. Please check your connection and try again.",
+    );
+  }
+
+  if (response.status === 401) {
+    window.location.href = "/login";
+    throw new Error("Session expired.");
+  }
+
+  return response;
+}
 
 // ---------------- Summarize whole document ----------------
 
@@ -33,7 +59,7 @@ summarizeButton.addEventListener("click", async () => {
   const typingBubble = addTypingIndicator();
 
   try {
-    const response = await fetch("/summarize", { method: "POST" });
+    const response = await apiFetch("/summarize", { method: "POST" });
     const data = await response.json();
     typingBubble.remove();
 
@@ -52,9 +78,52 @@ summarizeButton.addEventListener("click", async () => {
   summarizeButton.disabled = false;
 });
 
+// ---------------- Quick actions (Explain, Key Points, Questions) ----------------
+
+quickActionButtons.forEach((btn) => {
+  btn.addEventListener("click", () => runQuickAction(btn.dataset.action, btn));
+});
+
+async function runQuickAction(action, buttonEl) {
+  if (!hasUploadedDocument) return;
+
+  quickActionButtons.forEach((b) => (b.disabled = true));
+  summarizeButton.disabled = true;
+  setInputEnabled(false);
+
+  const typingBubble = addTypingIndicator();
+
+  try {
+    const response = await apiFetch("/quick-action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+
+    const data = await response.json();
+    typingBubble.remove();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to generate a response.");
+    }
+
+    addUserMessage(data.question);
+    addAssistantMessage(data.answer, data.sources);
+    loadDocumentList();
+  } catch (error) {
+    typingBubble.remove();
+    addAssistantMessage(error.message, [], true);
+  }
+
+  quickActionButtons.forEach((b) => (b.disabled = false));
+  summarizeButton.disabled = false;
+  setInputEnabled(true);
+}
+
 // ---------------- Search within document ----------------
 
 let searchDebounceTimer = null;
+let searchRequestId = 0; // guards against a slow, older request overwriting newer results
 
 searchInput.addEventListener("input", () => {
   clearTimeout(searchDebounceTimer);
@@ -69,9 +138,16 @@ searchInput.addEventListener("input", () => {
 });
 
 async function runSearch(query) {
+  const thisRequestId = ++searchRequestId;
+  searchResultsEl.innerHTML = `<div class="search-empty">Searching...</div>`;
+
   try {
-    const response = await fetch(`/search?q=${encodeURIComponent(query)}`);
+    const response = await apiFetch(`/search?q=${encodeURIComponent(query)}`);
     const data = await response.json();
+
+    // A newer search has started since this one was sent — discard
+    // this (now stale) result so it doesn't flash over the latest.
+    if (thisRequestId !== searchRequestId) return;
 
     if (!response.ok) {
       searchResultsEl.innerHTML = `<div class="search-empty">${escapeHtml(data.error || "Search failed.")}</div>`;
@@ -80,7 +156,8 @@ async function runSearch(query) {
 
     renderSearchResults(data.results, query, data.message);
   } catch (error) {
-    console.error("Search failed:", error);
+    if (thisRequestId !== searchRequestId) return;
+    searchResultsEl.innerHTML = `<div class="search-empty">${escapeHtml(error.message)}</div>`;
   }
 }
 
@@ -119,14 +196,14 @@ function highlightMatch(text, query) {
 
 async function loadDocumentList() {
   try {
-    const response = await fetch("/documents");
+    const response = await apiFetch("/documents");
     const data = await response.json();
 
     if (!response.ok) return;
 
     renderDocumentList(data.documents, data.active_document_id);
   } catch (error) {
-    console.error("Could not load document list:", error);
+    console.error("Could not load document list:", error.message);
   }
 }
 
@@ -151,7 +228,7 @@ function renderDocumentList(documents, activeDocumentId) {
     deleteBtn.title = "Delete this document";
     deleteBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      deleteDocument(doc.document_id, doc.document_name);
+      deleteDocument(doc.document_id, doc.document_name, item);
     });
 
     item.appendChild(label);
@@ -162,7 +239,7 @@ function renderDocumentList(documents, activeDocumentId) {
 
 async function switchDocument(documentId) {
   try {
-    const response = await fetch("/documents/select", {
+    const response = await apiFetch("/documents/select", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ document_id: documentId }),
@@ -188,18 +265,22 @@ async function switchDocument(documentId) {
     await loadChatHistory();
     await loadDocumentList();
   } catch (error) {
-    console.error("Failed to switch document:", error);
+    alert(error.message);
   }
 }
 
-async function deleteDocument(documentId, documentName) {
+async function deleteDocument(documentId, documentName, itemEl) {
   const confirmed = confirm(
     `Delete "${documentName}"? This will remove its chat history and cannot be undone.`,
   );
   if (!confirmed) return;
 
+  // Visual feedback while the delete request is in flight
+  itemEl.style.opacity = "0.5";
+  itemEl.style.pointerEvents = "none";
+
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       `/documents/${encodeURIComponent(documentId)}`,
       {
         method: "DELETE",
@@ -213,14 +294,14 @@ async function deleteDocument(documentId, documentName) {
 
     await loadDocumentList();
 
-    // If nothing is active anymore (the deleted doc was the active one),
-    // reset the chat view back to the empty state.
-    const historyResp = await fetch("/history");
+    const historyResp = await apiFetch("/history");
     const historyData = await historyResp.json();
     if (!historyData.document_id) {
       resetChatUI();
     }
   } catch (error) {
+    itemEl.style.opacity = "1";
+    itemEl.style.pointerEvents = "auto";
     alert(error.message);
   }
 }
@@ -240,7 +321,7 @@ function resetChatUI() {
 
 async function loadChatHistory() {
   try {
-    const response = await fetch("/history");
+    const response = await apiFetch("/history");
     const data = await response.json();
 
     if (!response.ok || !data.messages || data.messages.length === 0) return;
@@ -260,7 +341,7 @@ async function loadChatHistory() {
       addAssistantMessage(msg.answer, msg.sources);
     });
   } catch (error) {
-    console.error("Could not load chat history:", error);
+    console.error("Could not load chat history:", error.message);
   }
 }
 
@@ -295,7 +376,10 @@ async function uploadPdf(file) {
   formData.append("file", file);
 
   try {
-    const response = await fetch("/upload", { method: "POST", body: formData });
+    const response = await apiFetch("/upload", {
+      method: "POST",
+      body: formData,
+    });
     const data = await response.json();
 
     if (!response.ok) throw new Error(data.error || "Upload failed.");
@@ -348,7 +432,7 @@ chatForm.addEventListener("submit", async (event) => {
   const typingBubble = addTypingIndicator();
 
   try {
-    const response = await fetch("/ask", {
+    const response = await apiFetch("/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),

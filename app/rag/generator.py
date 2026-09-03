@@ -46,6 +46,37 @@ SUMMARY_SYSTEM_PROMPT = (
 # context is sent to the LLM to stay within a safe token budget; if the
 # document is longer, only the earliest pages (up to this limit) are used.
 MAX_SUMMARY_CONTEXT_CHARS = 15000
+QUICK_ACTION_PROMPTS = {
+    "explain": (
+        "You are a helpful tutor. You will be given the full text content of a "
+        "PDF document, extracted page by page. Explain what this document is "
+        "about in simple, beginner-friendly language, as if teaching someone "
+        "new to the topic. Avoid jargon where possible, and explain any "
+        "necessary technical terms in plain words. Base your explanation only "
+        "on the provided content."
+    ),
+    "key_points": (
+        "You are a helpful assistant that extracts key points from documents. "
+        "You will be given the full text content of a PDF document, extracted "
+        "page by page. List the most important points, facts, and ideas from "
+        "the document as a clear bulleted list. Base this only on the provided "
+        "content — do not add outside knowledge."
+    ),
+    "questions": (
+        "You are a helpful assistant that creates study questions from "
+        "documents. You will be given the full text content of a PDF "
+        "document, extracted page by page. Generate 5-8 thoughtful questions "
+        "(a mix of factual and conceptual) that a student could use to test "
+        "their understanding of this material. Number the questions. Base "
+        "them only on the provided content."
+    ),
+}
+
+QUICK_ACTION_LABELS = {
+    "explain": "Explain this document simply",
+    "key_points": "Give me the key points",
+    "questions": "Generate study questions",
+}
 
 
 def _get_client() -> Groq:
@@ -162,3 +193,46 @@ def generate_summary(chunks: list[dict]) -> str:
     logger.info("Summary generated successfully.")
 
     return summary
+def generate_quick_action(action: str, chunks: list[dict]) -> str:
+    """
+    Generate a document-wide response for a preset quick action
+    (Explain, Key Points, Generate Questions), using ALL of the
+    document's chunks — same reasoning as generate_summary(): these
+    requests are about the whole document, not a specific question
+    that semantic retrieval could target.
+    """
+    if action not in QUICK_ACTION_PROMPTS:
+        raise ValueError(f"Unknown quick action: {action}")
+
+    client = _get_client()
+    context = _build_context(chunks)
+
+    truncated = False
+    if len(context) > MAX_SUMMARY_CONTEXT_CHARS:
+        context = context[:MAX_SUMMARY_CONTEXT_CHARS]
+        truncated = True
+
+    user_prompt = f"Full document content:\n\n{context}\n\nPlease respond according to your instructions."
+
+    if truncated:
+        user_prompt += (
+            "\n\n(Note: this document is long, so only its earlier "
+            "portion is shown above. Base your response on what is available.)"
+        )
+
+    logger.info(f"Generating quick action '{action}' (model={LLM_MODEL_NAME}) ...")
+
+    response = client.chat.completions.create(
+        model=LLM_MODEL_NAME,
+        temperature=LLM_TEMPERATURE,
+        messages=[
+            {"role": "system", "content": QUICK_ACTION_PROMPTS[action]},
+            {"role": "user", "content": user_prompt}
+        ]
+    )
+
+    result = response.choices[0].message.content
+
+    logger.info(f"Quick action '{action}' generated successfully.")
+
+    return result
