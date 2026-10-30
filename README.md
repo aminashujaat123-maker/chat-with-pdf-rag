@@ -38,44 +38,41 @@ Upload any PDF, and ask questions about its content in plain English. The app re
 
 ## 🏗️ Architecture
 
-             USER
-               │
-               ▼
-         ┌───────────┐
-         │  Flask    │
-         │  Backend  │
-         └─────┬─────┘
-               │
-      ┌────────┴─────────┐
-      ▼                  ▼
-
-PDF Upload User Question
-│ │
-▼ ▼
-PyMuPDF Embedding Model
-│ │
-▼ ▼
-Text Chunks Vector Search
-│ │
-▼ ▼
-Embeddings Relevant Chunks
-│ │
-▼ │
-ChromaDB ◄─────────────┘
-│
-▼
-┌─────────┐
-│ LLM │
-│ (Groq) │
-└────┬────┘
-│
-▼
-Answer + Citations
-│
-▼
-Frontend
-
----
+                 USER
+                   │
+                   ▼
+             ┌───────────┐
+             │  Flask    │
+             │  Backend  │
+             └─────┬─────┘
+                   │
+          ┌────────┴─────────┐
+          ▼                  ▼
+     PDF Upload          User Question
+          │                  │
+          ▼                  ▼
+     PyMuPDF            Embedding Model
+          │                  │
+          ▼                  ▼
+      Text Chunks       Vector Search
+          │                  │
+          ▼                  ▼
+     Embeddings          Relevant Chunks
+          │                  │
+          ▼                  │
+      ChromaDB ◄─────────────┘
+                              │
+                              ▼
+                         ┌─────────┐
+                         │   LLM   │
+                         │ (Groq)  │
+                         └────┬────┘
+                              │
+                              ▼
+                    Answer + Citations
+                              │
+                              ▼
+                         Frontend
 
 ## 🧰 Tech Stack
 
